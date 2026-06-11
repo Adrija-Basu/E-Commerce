@@ -121,3 +121,161 @@ CREATE TABLE product_images (
 
     sort_order INT DEFAULT 1
 );
+-- =========================================
+-- WAREHOUSES
+-- =========================================
+
+CREATE TABLE IF NOT EXISTS warehouses (
+    warehouse_id SERIAL PRIMARY KEY,
+
+    warehouse_name VARCHAR(100) NOT NULL,
+
+    city VARCHAR(100),
+    state VARCHAR(100),
+
+    capacity INT CHECK(capacity > 0)
+);
+
+-- =========================================
+-- INVENTORY
+-- =========================================
+
+CREATE TABLE IF NOT EXISTS inventory (
+    inventory_id SERIAL PRIMARY KEY,
+
+    product_id INT REFERENCES products(product_id)
+    ON DELETE CASCADE,
+
+    warehouse_id INT REFERENCES warehouses(warehouse_id)
+    ON DELETE CASCADE,
+
+    quantity_available INT DEFAULT 0
+    CHECK(quantity_available >= 0),
+
+    reorder_threshold INT DEFAULT 10,
+
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(product_id, warehouse_id)
+);
+
+-- =========================================
+-- STOCK MOVEMENTS
+-- =========================================
+
+CREATE TABLE IF NOT EXISTS stock_movements (
+    movement_id SERIAL PRIMARY KEY,
+
+    inventory_id INT REFERENCES inventory(inventory_id)
+    ON DELETE CASCADE,
+
+    movement_type VARCHAR(20)
+    CHECK(movement_type IN (
+        'stock_in',
+        'stock_out',
+        'damaged',
+        'returned'
+    )),
+
+    quantity_changed INT NOT NULL,
+
+    movement_timestamp TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP,
+
+    notes TEXT
+); 
+
+-- =========================================
+-- PAYMENTS
+-- =========================================
+
+CREATE TABLE IF NOT EXISTS payments (
+    payment_id SERIAL PRIMARY KEY,
+
+    order_id INT REFERENCES orders(order_id),
+
+    payment_method VARCHAR(30),
+
+    payment_status VARCHAR(20)
+    CHECK(payment_status IN (
+        'pending',
+        'success',
+        'failed',
+        'refunded'
+    )),
+
+    amount DECIMAL(10,2)
+    CHECK(amount >= 0),
+
+    gateway_reference VARCHAR(255),
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =========================================
+-- PAYMENT TRANSACTIONS
+-- =========================================
+
+CREATE TABLE IF NOT EXISTS payment_transactions (
+    transaction_id SERIAL PRIMARY KEY,
+
+    payment_id INT REFERENCES payments(payment_id)
+    ON DELETE CASCADE,
+
+    transaction_status VARCHAR(20),
+
+    gateway_response TEXT,
+
+    transaction_time TIMESTAMP
+    DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =========================================
+-- INVOICES
+-- =========================================
+
+CREATE TABLE IF NOT EXISTS invoices (
+    invoice_id SERIAL PRIMARY KEY,
+
+    order_id INT REFERENCES orders(order_id),
+
+    payment_id INT REFERENCES payments(payment_id),
+
+    invoice_number VARCHAR(100) UNIQUE,
+
+    invoice_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    total_amount DECIMAL(10,2)
+);
+
+CREATE TABLE IF NOT EXISTS carts (
+    cart_id SERIAL PRIMARY KEY,
+    customer_id INT REFERENCES customer_profiles(customer_id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS cart_items (
+    cart_item_id SERIAL PRIMARY KEY,
+    cart_id INT REFERENCES carts(cart_id) ON DELETE CASCADE,
+    product_id INT REFERENCES products(product_id),
+    quantity INT CHECK(quantity > 0),
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+    order_id SERIAL PRIMARY KEY,
+    customer_id INT REFERENCES customer_profiles(customer_id),
+    order_status VARCHAR(20)
+    CHECK(order_status IN ('pending','confirmed','shipped','delivered','cancelled')),
+    total_amount DECIMAL(10,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS order_items (
+    order_item_id SERIAL PRIMARY KEY,
+    order_id INT REFERENCES orders(order_id) ON DELETE CASCADE,
+    product_id INT REFERENCES products(product_id),
+    quantity INT CHECK(quantity > 0),
+    price_at_purchase DECIMAL(10,2)
+);
